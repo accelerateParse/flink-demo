@@ -11,6 +11,7 @@
     <modules>
         <module>HotItemsAnalysis</module>
         <module>OrderPayDetect</module>
+        <module>marketAnalysis</module>
     </modules>
 
 

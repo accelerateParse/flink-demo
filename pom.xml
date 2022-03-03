@@ -12,6 +12,8 @@
         <module>HotItemsAnalysis</module>
         <module>OrderPayDetect</module>
         <module>marketAnalysis</module>
+        <module>NetworkFlowAnalysis</module>
+        <module>LoginFailDetect</module>
     </modules>
 
 

@@ -28,7 +28,7 @@ public class AdStatisticsByProvince {
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.setParallelism(1);
 
-        URL adResource = AdStatisticsByProvince.class.getResource("/order.txt");
+        URL adResource = AdStatisticsByProvince.class.getResource("/data.txt");
         SingleOutputStreamOperator<AdClickEvent> filterBlackUserStream = env.readTextFile(adResource.getPath()).map(line -> {
                     String[] str = line.split(",");
                     return new AdClickEvent(new Long(str[0]), new Long(str[1]), str[2], str[3], new Long(str[4]));

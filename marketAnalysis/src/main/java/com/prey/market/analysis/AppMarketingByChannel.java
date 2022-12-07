@@ -11,30 +11,40 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.AscendingTimestampExtractor;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
 import java.sql.Timestamp;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class AppMarketingByChannel {
     public static void main(String[] args) throws Exception{
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.setParallelism(1);
-        SingleOutputStreamOperator<MarketingUserBehavior> dataStream = env.addSource(new SimulateMarketingUserBehaviorSource()).assignTimestampsAndWatermarks(new AscendingTimestampExtractor<MarketingUserBehavior>() {
-            @Override
-            public long extractAscendingTimestamp(MarketingUserBehavior marketingUserBehavior) {
-                return marketingUserBehavior.getTimestamp() * 1000;
-            }
-        });
-        dataStream.filter( data -> ! "UNINSTALL".equals(data.getBehavior()))
-                .keyBy("channel", "behavior")
-                .timeWindow(Time.hours(1), Time.seconds(5))
-                .aggregate(new MarketingCountAgg(), new MarketingCountResult()).print();
+        SingleOutputStreamOperator<MarketingUserBehavior> dataStream = env.addSource(new SimulateMarketingUserBehaviorSource());
+        SingleOutputStreamOperator<String> resultSteam = dataStream.filter(data -> !"UNINSTALL".equals(data.getBehavior()))
+                .keyBy(MarketingUserBehavior::getChannel)
+                .window(TumblingProcessingTimeWindows.of(Time.seconds(20)))
+                .process(new ProcessWindowFunction<MarketingUserBehavior, String, String, TimeWindow>() {
+                    @Override
+                    public void process(String s, ProcessWindowFunction<MarketingUserBehavior, String, String, TimeWindow>.Context context, Iterable<MarketingUserBehavior> iterable, Collector<String> collector) throws Exception {
+                        HashMap<String, Integer> result = new HashMap<>();
+                        Iterator<MarketingUserBehavior> iterator = iterable.iterator();
+
+                        while (iterator.hasNext()) {
+                            MarketingUserBehavior next = iterator.next();
+                            Integer count = result.getOrDefault(next.getBehavior(), 0) + 1;
+                            result.put(next.getBehavior(), count);
+                        }
+                        for (String key : result.keySet()) {
+                            collector.collect("channel:" + s + " behavior:" + key + "count:" + result.get(key));
+                        }
+                    }
+                });
+
+        resultSteam.print();
 
         env.execute("AppMarketingByChannel");
 
@@ -55,7 +65,7 @@ public class AppMarketingByChannel {
                 Long timestamp = System.currentTimeMillis();
                 Long id = random.nextLong();
                 sourceContext.collect(new MarketingUserBehavior(id, behavior, channel, timestamp));
-                Thread.sleep(1000);
+                Thread.sleep(100);
             }
         }
         @Override
